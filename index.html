@@ -1,0 +1,694 @@
+<!doctype html><html><head><meta charset=utf8><meta name=viewport content="width=device-width,initial-scale=1,viewport-fit=cover"><style>:root{color-scheme:light;box-sizing:border-box;padding-top:env(safe-area-inset-top,0px);padding-bottom:env(safe-area-inset-bottom,0px)}html{scroll-padding-top:env(safe-area-inset-top,0px)}body{margin:0;padding:0;font:14px -apple-system,BlinkMacSystemFont,sans-serif;background:#fff;color:#000}img{max-width:100%}[hidden]:not([hidden=until-found i]){display:none!important}</style></head><body>
+<title>Thunderbird Settings Prototype</title>
+<meta name="claude:viewport-fit-sides" content="cover">
+<style>
+/* Layout: app frame = dark app rail | settings nav | content pane of grouped cards. Collapses to stacked nav on phones. */
+:root{
+  --bg:#ffffff; --panel:#f9f9fb; --head:#eeeef3; --line:#e0e0e8; --fg:#15141a; --muted:#5b5b6b;
+  --accent:#0a6bd8; --accent-soft:#eaf3ff; --btn:#efeff4; --btn-hover:#e4e4ec; --rail:#2a2a52; --rail-fg:#c9c9e6;
+  --ctl:#ffffff; --off:#8f8f9d; --shadow:0 1px 2px rgba(20,20,40,.06);
+  --font:"Inter","Segoe UI",system-ui,-apple-system,sans-serif;
+  --scale:1; --row-pad:14px;
+}
+@media (prefers-color-scheme:dark){:root:not([data-theme="light"]){
+  --bg:#1c1b22; --panel:#23222b; --head:#2d2c38; --line:#3d3c4a; --fg:#fbfbfe; --muted:#b2b1c0;
+  --accent:#54a3ff; --accent-soft:#243a58; --btn:#383744; --btn-hover:#444354; --rail:#16152e; --rail-fg:#b9b9d8;
+  --ctl:#2d2c38; --off:#6f6e80; --shadow:none; color-scheme:dark}}
+:root[data-theme="dark"]{
+  --bg:#1c1b22; --panel:#23222b; --head:#2d2c38; --line:#3d3c4a; --fg:#fbfbfe; --muted:#b2b1c0;
+  --accent:#54a3ff; --accent-soft:#243a58; --btn:#383744; --btn-hover:#444354; --rail:#16152e; --rail-fg:#b9b9d8;
+  --ctl:#2d2c38; --off:#6f6e80; --shadow:none; color-scheme:dark}
+:root[data-density="compact"]{--row-pad:8px}
+:root[data-density="relaxed"]{--row-pad:20px}
+*{box-sizing:border-box}
+html,body{height:100%}
+body{margin:0;background:var(--bg);color:var(--fg);font-family:var(--font);font-size:calc(14px*var(--scale));line-height:1.45}
+button,input,select{font:inherit;color:inherit}
+svg{flex:none}
+.app{display:grid;grid-template-columns:64px 280px minmax(0,1fr);height:100%;min-height:560px}
+.rail{background:var(--rail);display:flex;flex-direction:column;align-items:center;padding:16px 0;gap:6px}
+.rail button{width:40px;height:40px;border:0;border-radius:8px;background:none;color:var(--rail-fg);display:grid;place-items:center;cursor:pointer}
+.rail button:hover{background:rgba(255,255,255,.1)}
+.rail .on{background:#0a84ff;color:#fff}
+.rail .sp{flex:1}
+.nav{background:var(--panel);border-right:1px solid var(--line);padding:16px 12px;overflow:auto;display:flex;flex-direction:column;gap:4px}
+.search{display:flex;align-items:center;gap:8px;border:1px solid var(--line);background:var(--ctl);border-radius:12px;padding:0 12px;height:44px;margin-bottom:12px}
+.search:focus-within{outline:2px solid var(--accent)}
+.search input{border:0;background:none;outline:0;flex:1;min-width:0}
+.search button{border:0;background:none;cursor:pointer;color:var(--muted);padding:2px;display:grid}
+.navitem{display:flex;align-items:center;gap:12px;height:44px;padding:0 12px;border-radius:10px;border:0;background:none;text-align:left;cursor:pointer;width:100%}
+.navitem:hover{background:var(--btn)}
+.navitem[aria-current="page"]{background:var(--accent-soft);color:var(--fg);font-weight:500}
+.navitem[aria-current="page"] svg{color:var(--accent)}
+main{overflow:auto;padding:32px 40px 64px;min-width:0}
+.wrap{max-width:860px;margin:0 auto}
+h1{font-size:calc(24px*var(--scale));font-weight:500;margin:0 0 20px;display:flex;align-items:center;gap:12px;flex-wrap:wrap}
+.saved{font-size:calc(12px*var(--scale));font-weight:500;color:var(--accent);background:var(--accent-soft);border-radius:99px;padding:2px 10px;opacity:0;transition:opacity .2s}
+.saved.show{opacity:1}
+.card{border:1px solid var(--line);border-radius:14px;background:var(--panel);margin-bottom:20px;box-shadow:var(--shadow);overflow:hidden}
+.card>header{display:flex;align-items:center;gap:12px;background:var(--head);padding:14px 16px;font-weight:500;font-size:calc(16px*var(--scale))}
+.card>header svg{color:var(--accent)}
+.rows{padding:0 24px}
+.row{display:flex;align-items:center;justify-content:space-between;gap:20px;padding:var(--row-pad) 0;border-top:1px solid var(--line)}
+.row:first-child{border-top:0}
+.row.col{flex-direction:column;align-items:stretch;gap:10px}
+.lbl{min-width:0}
+.lbl b{font-weight:400;color:var(--muted)}
+.lbl.strong b{color:var(--fg);font-weight:500}
+.ctl{display:flex;gap:8px;align-items:center;flex-wrap:wrap;justify-content:flex-end}
+.btn{display:inline-flex;align-items:center;gap:8px;height:40px;padding:0 14px;border:0;border-radius:8px;background:var(--btn);cursor:pointer}
+.btn:hover:not(:disabled){background:var(--btn-hover)}
+.btn:disabled{cursor:not-allowed}
+.btn.primary{background:var(--accent);color:#fff}
+.sw{width:44px;height:24px;border-radius:99px;border:0;background:var(--off);position:relative;cursor:pointer;transition:background .15s;padding:0;flex:none}
+.sw::after{content:"";position:absolute;top:3px;left:3px;width:18px;height:18px;border-radius:50%;background:#fff;transition:transform .15s}
+.sw::before{content:"";position:absolute;z-index:1;left:30px;top:7px;width:4px;height:8px;border:solid var(--accent);border-width:0 2px 2px 0;transform:rotate(45deg);opacity:0;transition:opacity .15s}
+.sw[aria-checked="true"]::before{opacity:1}
+.sw[aria-checked="true"]{background:var(--accent)}
+.sw[aria-checked="true"]::after{transform:translateX(20px)}
+.inp{height:40px;border:1px solid var(--line);background:var(--ctl);border-radius:8px;padding:0 10px;width:min(280px,100%)}
+.sel{height:40px;border:1px solid var(--line);background:var(--ctl);border-radius:8px;padding:0 10px;min-width:200px}
+:focus-visible{outline:2px solid var(--accent);outline-offset:2px}
+.seg{display:inline-flex;background:var(--btn);border-radius:10px;padding:3px}
+.seg button{border:0;background:none;border-radius:8px;height:34px;padding:0 14px;cursor:pointer}
+.seg button[aria-pressed="true"]{background:var(--ctl);box-shadow:0 1px 3px rgba(0,0,0,.18);font-weight:500}
+.file{display:flex;align-items:center;justify-content:space-between;gap:8px;border:1px solid var(--line);background:var(--ctl);border-radius:8px;padding:6px 8px 6px 12px;min-width:0}
+.file span{color:var(--muted);overflow:hidden;text-overflow:ellipsis;white-space:nowrap;min-width:0}
+.file span.has{color:var(--fg)}
+.file .btn{height:36px}
+.eq{display:inline-flex;gap:2px;align-items:flex-end;height:16px}
+.eq i{width:3px;background:var(--accent);border-radius:2px;animation:eq .6s infinite alternate}
+.eq i:nth-child(2){animation-delay:.15s}.eq i:nth-child(3){animation-delay:.3s}
+@keyframes eq{from{height:4px}to{height:16px}}
+.themes{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:12px}
+.tcard{border:2px solid var(--line);border-radius:12px;background:var(--ctl);padding:8px;cursor:pointer;text-align:left}
+.tcard[aria-pressed="true"]{border-color:var(--accent)}
+.tcard .pv{height:64px;border-radius:6px;display:grid;grid-template-columns:22% 1fr;overflow:hidden;border:1px solid rgba(128,128,128,.3)}
+.tcard .pv i{display:block}
+.tcard span{display:block;margin-top:8px;font-weight:500}
+.range{display:flex;align-items:center;gap:12px;width:min(320px,100%)}
+.range input{flex:1;accent-color:var(--accent)}
+.preview{border:1px solid var(--line);border-radius:10px;background:var(--ctl);overflow:hidden}
+.msg{display:flex;gap:12px;align-items:center;padding:var(--row-pad) 14px;border-top:1px solid var(--line)}
+.msg:first-child{border-top:0}
+.msg .av{width:32px;height:32px;border-radius:50%;background:var(--accent-soft);color:var(--accent);display:grid;place-items:center;font-weight:600;font-size:12px;flex:none}
+.msg .t{min-width:0;flex:1}
+.msg .t b{display:block;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.msg .t small{color:var(--muted);white-space:nowrap;overflow:hidden;text-overflow:ellipsis;display:block}
+.msg time{color:var(--muted);font-size:12px}
+.msg.read b{font-weight:400}
+.preview.noav .av{display:none}
+.preview.table .t{display:flex;gap:12px}.preview.table .t b{width:30%;flex:none}
+.pop{position:fixed;inset:0;background:rgba(0,0,0,.4);display:grid;place-items:center;padding:16px;z-index:20}
+.dlg{background:var(--bg);border:1px solid var(--line);border-radius:14px;max-width:440px;width:100%;padding:20px 24px;display:flex;flex-direction:column;gap:2px}
+.dlg h2{margin:0 0 4px;font-size:18px;font-weight:500}
+.dlg .row{padding:12px 0}
+.dlg .foot{display:flex;justify-content:flex-end;margin-top:8px}
+.empty,.stubpane{color:var(--muted);padding:48px 0;text-align:center}
+.crumb{font-size:12px;color:var(--muted);margin:0 0 6px}
+mark{background:var(--accent-soft);color:inherit;border-radius:3px}
+.tip{margin:24px 0 0;color:var(--muted);font-size:12.5px}
+@media (max-width:900px) and (min-width:561px){
+  .app{grid-template-columns:56px 220px minmax(0,1fr)}
+  main{padding:24px 20px 48px}
+  .rows{padding:0 16px}.row{flex-wrap:wrap}.themes{grid-template-columns:1fr}
+  .ctl{justify-content:flex-start}.file{flex-wrap:wrap}.sel{min-width:0}
+}
+@media (max-width:560px){
+  .app{grid-template-columns:minmax(0,1fr);grid-template-rows:auto auto minmax(0,1fr);height:auto}
+  .rail{flex-direction:row;padding:8px 16px;justify-content:flex-start}.rail .sp{display:none}
+  #navlist{display:flex;flex-wrap:wrap;gap:4px}
+  .nav{border-right:0;border-bottom:1px solid var(--line);padding:12px 16px}
+  .navitem{width:auto;height:36px;padding:0 10px}.navitem span{display:none}.navitem[aria-current="page"] span{display:inline}
+  main{padding:24px max(16px,env(safe-area-inset-left,0px)) 48px max(16px,env(safe-area-inset-right,0px))}
+  .rows{padding:0 16px}.row{flex-wrap:wrap}.themes{grid-template-columns:1fr}
+  .ctl{justify-content:flex-start}.file{flex-wrap:wrap}
+}
+@media (prefers-reduced-motion:reduce){*{animation:none!important;transition:none!important}}
+
+.lbl small{display:block;color:var(--muted);font-size:calc(12.5px*var(--scale));margin-top:2px;max-width:60ch}
+.cdesc{margin:0;padding:12px 24px 0;color:var(--muted)}
+.badge{margin-left:8px;font-size:11px;font-weight:600;text-transform:uppercase;letter-spacing:.04em;background:var(--accent-soft);color:var(--accent);border-radius:99px;padding:1px 8px}
+.accs{display:grid;grid-template-columns:repeat(auto-fill,minmax(150px,1fr));gap:10px}
+.acc{display:flex;align-items:center;gap:10px;border:2px solid var(--line);background:var(--ctl);border-radius:10px;padding:8px 10px;cursor:pointer;text-align:left}
+.acc[aria-pressed="true"]{border-color:var(--accent)}
+.acc i{width:18px;height:18px;border-radius:50%;flex:none}
+.msg .who{font-weight:500}
+.tbl{display:grid;grid-template-columns:minmax(0,3fr) minmax(0,2fr) 70px;gap:12px;padding:var(--row-pad) 14px;border-top:1px solid var(--line)}
+.tbl span{white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.tbl.hd{border-top:0;color:var(--muted);font-size:12px;text-transform:uppercase;letter-spacing:.04em;background:var(--head)}
+.tbl.read{color:var(--muted)}
+.preview.hs{overflow-x:auto}.preview.hs>.tbl{min-width:640px}
+#toast{position:fixed;left:50%;bottom:max(24px,env(safe-area-inset-bottom,0px));transform:translateX(-50%);background:var(--fg);color:var(--bg);padding:8px 16px;border-radius:8px;opacity:0;pointer-events:none;transition:opacity .2s;z-index:30}
+#toast.show{opacity:1}
+.subh{padding:16px 0 4px;border-top:1px solid var(--line)}
+.subh b{font-weight:600;font-size:calc(15px*var(--scale))}
+.subh small{display:block;color:var(--muted);font-size:calc(12.5px*var(--scale))}
+.subh+.row{border-top:0}
+.rows>.subh:first-child{border-top:0}
+.stubnote{color:var(--muted);margin:-8px 0 20px}
+.opts{display:flex;flex-direction:column;gap:2px;margin:0 -10px}
+.opts.inline{flex-direction:row;flex-wrap:wrap}
+.opt{display:flex;gap:12px;align-items:flex-start;padding:8px 10px;border-radius:10px;cursor:pointer}
+.opt:hover{background:var(--btn)}
+.opt input{margin:2px 0 0;width:18px;height:18px;accent-color:var(--accent);flex:none;cursor:pointer}
+.opt span{min-width:0}
+.opt b{font-weight:400;color:var(--fg)}
+.opt input:checked+span b{font-weight:500}
+.opt small{display:block;color:var(--muted);font-size:calc(12.5px*var(--scale));max-width:62ch}
+.dot{width:16px;height:16px;border-radius:50%;flex:none}
+</style>
+
+<div class="app">
+  <nav class="rail" aria-label="Apps" id="rail"></nav>
+  <aside class="nav">
+    <label class="search"><span id="ic-search"></span><input id="q" type="search" placeholder="Search settings..." aria-label="Search settings" autocomplete="off"><button id="qx" hidden aria-label="Clear search">&#x2715;</button></label>
+    <div id="navlist"></div>
+  </aside>
+  <main><div class="wrap" id="pane"></div></main>
+</div>
+<div id="modal"></div>
+
+<script>
+const P={
+ search:'<circle cx="11" cy="11" r="7"/><path d="m20 20-4-4"/>',
+ user:'<circle cx="12" cy="12" r="9"/><circle cx="12" cy="10" r="3"/><path d="M6.5 18.5c1.5-2.5 3.2-3.5 5.5-3.5s4 1 5.5 3.5"/>',
+ gear:'<circle cx="12" cy="12" r="3"/><path d="M12 2v3M12 19v3M2 12h3M19 12h3M4.9 4.9l2.1 2.1M17 17l2.1 2.1M4.9 19.1 7 17M17 7l2.1-2.1"/>',
+ palette:'<path d="M12 3a9 9 0 1 0 0 18c1.5 0 2-1 1.5-2-.6-1.3.2-2.5 1.7-2.5H17a4 4 0 0 0 4-4c0-4.5-4-9.5-9-9.5z"/><circle cx="7.5" cy="11" r="1"/><circle cx="10" cy="7.5" r="1"/><circle cx="14.5" cy="7.5" r="1"/>',
+ bell:'<path d="M6 17V11a6 6 0 0 1 12 0v6l1.5 2h-15z"/><path d="M10 21h4"/>',
+ pen:'<path d="m4 20 1-4L16 5l3 3L8 19z"/><path d="M13 8l3 3"/>',
+ lock:'<rect x="5" y="10" width="14" height="10" rx="2"/><path d="M8 10V7a4 4 0 0 1 8 0v3"/>',
+ flask:'<path d="M9 3h6M10 3v6l-5 9a2 2 0 0 0 2 3h10a2 2 0 0 0 2-3l-5-9V3"/>',
+ cal:'<rect x="4" y="5" width="16" height="15" rx="2"/><path d="M4 10h16M8 3v4M16 3v4"/>',
+ chat:'<path d="M4 5h16v11H9l-5 4z"/><path d="M8.5 10.5h.01M12 10.5h.01M15.5 10.5h.01"/>',
+ puzzle:'<path d="M9 4h4v3a2 2 0 1 1 0 4h4v4h-3a2 2 0 1 0 0 4h-5v-4a2 2 0 1 0-4 0V9h4z"/>',
+ mail:'<rect x="3" y="5" width="18" height="14" rx="2"/><path d="m4 7 8 6 8-6"/>',
+ book:'<rect x="5" y="3" width="14" height="18" rx="2"/><circle cx="12" cy="10" r="2.5"/><path d="M8 17c1-2 2.2-2.500 4-2.500s3 .5 4 2.5"/>',
+ task:'<rect x="5" y="4" width="14" height="17" rx="2"/><path d="m9 13 2 2 4-4"/>',
+ upload:'<path d="M12 16V5M7.5 9.5 12 5l4.5 4.5M5 19h14"/>',
+ play:'<path d="M7 5v14l11-7z"/>',
+ stop:'<rect x="6" y="6" width="12" height="12" rx="1"/>',
+ globe:'<circle cx="12" cy="12" r="9"/><path d="M3 12h18M12 3c3 3 3 15 0 18M12 3c-3 3-3 15 0 18"/>',
+ dl:'<path d="M12 4v11M7.5 10.5 12 15l4.5-4.5M5 19h14"/>',
+ collapse:'<path d="M5 5v14M20 12H9M13 8l-4 4 4 4"/>',
+ envx:'<rect x="3" y="5" width="18" height="14" rx="2"/><path d="m4 6 8 7 8-7M4 18l6-6M20 18l-6-6"/>'
+};
+const ic=(n,s=24)=>`<svg width="${s}" height="${s}" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">${P[n]}</svg>`;
+const esc=s=>String(s).replace(/[&<>"]/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c]));
+
+const DEF={acct:'work',accts:{},
+ composeFont:'sys',composeSize:'12',ignoreSender:false,paraSpacing:false,sendFormat:'auto',forwardAs:'inline',addFileType:true,autosave:true,autosaveMin:'5',
+ missingAtt:true,shareLarge:true,shareLargeMb:'5',openPdf:'preview',openImg:'preview',openDoc:'ask',
+ collectOutgoing:true,collectTo:'collected',savedContacts:'personal',dirStartup:'last',acLocal:true,acNetwork:false,acServer:false,acDirServer:'none',
+ remoteContent:false,history:true,cookies:true,thirdParty:'visited',gpc:true,shareTelemetry:true,shareCrash:true,
+ spamAction:'junk',spamReadManual:true,spamReadAuto:false,spamLog:false,scamWarn:true,antivirus:false,certMode:'auto',ocsp:true,
+ primaryPw:false,osReauth:true,e2eeAuto:true,e2eeAutoOff:false,e2eeNotify:true,doh:'default',dohProvider:'cloudflare',dohWarn:true,offlineCompact:true,offlineAsk:true,
+ wd1:true,wd2:true,wd3:true,wd4:true,wd5:true,wd6:false,wd0:false,dayStart:'9',dayEnd:'17',calView:'week',weekNums:false,localeSrc:'app',clock:'24',
+ evtDuration:'60',remindNew:true,remindMin:'15',snooze:'10',invAuto:'show',rsvp:'ask',conflictWarn:true,alarmStyle:'popup',missedStart:true,missedFor:'7',calSound:true,calSoundFile:'chime',
+ chatStartup:'connect',idle:true,idleMin:'10',awayMsg:'Away from my keyboard',typing:true,chatNotify:'all',chatFlash:true,chatSound:true,chatTheme:'mail',chatVariant:'default',
+ ext1:true,ext2:false,appLang:'en-US',searchEngine:'duckduckgo',tray:false,startTray:false,defmail:true,
+ recentSort:'mru',recentMax:'20',
+ askSave:false,dlpath:'~/Downloads',storeFmt:'mbox',manualLimit:false,clearOnClose:false,gpu:true,globalSearch:true,plainResults:false,
+ updates:'auto',bgUpdate:true,
+ theme:'system',accent:'thunderbird',darkMsg:false,darkToggle:false,
+ addrFmt:'full',nameOnly:true,convView:false,underlineLinks:false,emoticons:true,
+ hideTitle:false,hideTabbar:true,autoscroll:false,smooth:true,scrollbars:false,hscroll:false,
+ viewStyle:'card',cardRows:'3',thread:'threaded',sortBy:'date',sortOrder:'top',density:'default',fontsize:100,
+ notifyMail:true,sound:true,file:'',alertPreview:true,alertSender:true,alertBadge:true,iconBadge:'count'};
+let S=Object.assign({},DEF);
+try{Object.assign(S,JSON.parse(localStorage.getItem('tb-settings-proto')||'{}'))}catch(e){}
+
+const SECTIONS=[
+ {id:'accounts',label:'Accounts',icon:'user'},
+ {id:'general',label:'General',icon:'gear'},
+ {id:'appearance',label:'Appearance',icon:'palette'},
+ {id:'notifications',label:'Notifications',icon:'bell'},
+ {id:'composition',label:'Composition',icon:'pen'},
+ {id:'privacy',label:'Privacy and security',icon:'lock'},
+ {id:'calendar',label:'Calendar',icon:'cal'},
+ {id:'chat',label:'Chat',icon:'chat'},
+ {id:'extensions',label:'Extensions',icon:'puzzle'},
+ {id:'beta',label:'Beta features',icon:'flask'}
+];
+const OUT={
+ composition:[['Writing and formatting',['Fonts','Line and paragraph spacing','Send format','Forwarding','Autosaving']],['Attachments and downloads',['Files and attachments','File actions']],['Contacts and auto-complete',['Address book','Auto-complete rules']]],
+ privacy:[['Data privacy',['Email content','Web content','Cookies and site data','Help improve Thunderbird']],['Fraud protection',['Fraud and filters']],['Security',['Phishing and scam warnings','Antivirus integration','Certifications']],['Passwords',['Saved passwords and logins','Primary password','Security devices']],['Encryption',['OpenPGP','Key management','Web address protection (secure DNS)']],['Network',['Connection settings','Working offline']]],
+ calendar:[['View and work week',['Work week and hours','Calendar view options','Date and time display formats']],['Event and task defaults',['Default event duration','Reminders','Snooze']],['Invitations and responses',['Manage invitations','RSVP','Conflict warnings']],['Notifications',['Alarm style','Missed reminders','Sounds']],['Categories',['List of categories']]]
+};
+const LANGS=[['en-US','English (US)'],['en-GB','English (UK)'],['de','Deutsch'],['fr','Français'],['es','Español'],['nl','Nederlands']];
+const FOLDERS=[['inbox','Inbox'],['sent','Sent'],['archives','Archives'],['drafts','Drafts'],['trash','Trash'],['junk','Junk']];
+const HOURS=[['6','6:00'],['7','7:00'],['8','8:00'],['9','9:00'],['10','10:00'],['16','16:00'],['17','17:00'],['18','18:00'],['19','19:00']];
+const CARDS={
+composition:[
+ {title:'Writing and formatting',icon:'pen',rows:[
+  {type:'sub',label:'Fonts'},
+  {k:'composeFont',label:'Font',type:'select',opts:[['sys','System UI'],['serif','Serif'],['mono','Monospace']]},
+  {k:'composeSize',label:'Size',type:'select',opts:[['10','10'],['12','12'],['14','14'],['16','16']]},
+  {k:'ignoreSender',label:'Ignore sender fonts and colors',type:'toggle'},
+  {label:'Reset fonts',type:'btn',btn:'Restore Defaults'},
+  {type:'sub',label:'Line and paragraph spacing'},
+  {k:'paraSpacing',label:'Pressing Enter starts a new paragraph with extra spacing',type:'toggle',kw:'enter line break'},
+  {type:'sub',label:'Send format'},
+  {k:'sendFormat',label:'Sending format',type:'radios',opts:[['auto','Automatic (recommended)','Send formatted text if you add styles (like bold or links), or plain text if you don’t.'],['both','Both rich text (HTML) and plain text','Always sends both versions so the recipient’s email app can choose which one to display.'],['html','Rich text (HTML) only','Keeps custom fonts, colors, and images, but some older email apps may not display it properly.'],['plain','Plain text only','Removes all formatting, colors, and images. Best for simple text emails that work everywhere.']],kw:'html plain text'},
+  {type:'sub',label:'Forwarding'},
+  {k:'forwardAs',label:'Forward messages as',type:'radios',opts:[['inline','Inside the message (inline)'],['attach','As attachment']]},
+  {k:'addFileType',label:'Add file type to attached messages',type:'toggle',show:()=>S.forwardAs==='attach'},
+  {type:'sub',label:'Autosaving'},
+  {k:'autosave',label:'Automatically save a draft',type:'toggle',kw:'drafts'},
+  {k:'autosaveMin',label:'Save a draft every',type:'select',opts:[['1','1 minute'],['5','5 minutes'],['10','10 minutes'],['30','30 minutes']],show:()=>S.autosave}]},
+ {title:'Attachments and downloads',icon:'dl',rows:[
+  {type:'sub',label:'Files and attachments'},
+  {k:'missingAtt',label:'Check for missing attachments',desc:'Warns you before sending if your message mentions an attachment but none is attached.',type:'toggle'},
+  {k:'shareLarge',label:'Offer to share files by link when they are large',type:'toggle',kw:'filelink cloud'},
+  {k:'shareLargeMb',label:'Offer when files exceed',type:'select',opts:[['5','5 MB'],['10','10 MB'],['25','25 MB'],['50','50 MB']],show:()=>S.shareLarge},
+  {type:'sub',label:'File actions',desc:'Choose what happens when you open these file types.'},
+  {k:'openPdf',label:'Portable Document Format (PDF)',type:'select',opts:[['preview','Preview in Thunderbird'],['save','Save File'],['ask','Always ask'],['default','Use system default app']],kw:'pdf'},
+  {k:'openImg',label:'Images (JPEG, PNG)',type:'select',opts:[['preview','Preview in Thunderbird'],['save','Save File'],['ask','Always ask'],['default','Use system default app']],kw:'image photo'},
+  {k:'openDoc',label:'Word documents (DOCX)',type:'select',opts:[['preview','Preview in Thunderbird'],['save','Save File'],['ask','Always ask'],['default','Use system default app']],kw:'word docx'}]},
+ {title:'Contacts and auto-complete',icon:'user',rows:[
+  {type:'sub',label:'Address book'},
+  {k:'collectOutgoing',label:'Automatically save outgoing email addresses',desc:'Where new contacts are saved when created manually or added from emails.',type:'toggle'},
+  {k:'collectTo',label:'Save outgoing addresses to',type:'select',opts:[['collected','Collected Addresses'],['personal','Personal Address Book']],show:()=>S.collectOutgoing},
+  {k:'savedContacts',label:'Save manually added contacts to',type:'select',opts:[['personal','Personal Address Book'],['collected','Collected Addresses']]},
+  {k:'dirStartup',label:'Show directory in the address book window when opening Thunderbird',type:'select',opts:[['last','Last used directory'],['personal','Personal Address Book']]},
+  {type:'sub',label:'Auto-complete rules'},
+  {label:'When typing a recipient’s name or email, look for matches in',type:'checks',opts:[['acLocal','Local address books'],['acNetwork','Company or network directory'],['acServer','Directory server']],kw:'autocomplete recipients ldap'},
+  {k:'acDirServer',label:'Directory server',type:'select',opts:[['none','None'],['corp','corp.example.org']],show:()=>S.acServer},
+  {label:'Directories',type:'btn',btn:'Manage directories…'}]}
+],
+privacy:[
+ {title:'Data privacy',icon:'lock',rows:[
+  {type:'sub',label:'Email content'},
+  {k:'remoteContent',label:'Allow remote content (images and styles)',type:'toggle',kw:'tracking images'},
+  {label:'Remote content',type:'btns',btns:['Exceptions…','How remote content affects privacy']},
+  {type:'sub',label:'Web content'},
+  {k:'history',label:'Remember websites and links I’ve visited',type:'toggle'},
+  {type:'sub',label:'Cookies and site data'},
+  {k:'cookies',label:'Accept cookies from sites',type:'toggle'},
+  {k:'thirdParty',label:'Accept third-party cookies',type:'select',opts:[['always','Always'],['never','Never'],['visited','From visited sites only']],show:()=>S.cookies},
+  {label:'Stored cookies',type:'btn',btn:'Show Cookies…'},
+  {k:'gpc',label:'Ask websites not to sell or share personal data',type:'toggle',kw:'global privacy control gpc'},
+  {type:'sub',label:'Help improve Thunderbird',desc:'Thunderbird is built by a global community. Sharing anonymous performance data helps us fix bugs faster and make the app faster for everyone.'},
+  {label:'Data collected to improve Thunderbird',type:'checks',opts:[['shareTelemetry','Share anonymous performance data with Mozilla','Includes basic technical info like your operating system, memory usage, and feature activity. Thunderbird never collects email content, contacts, or personal messages.'],['shareCrash','Send anonymous crash reports to Mozilla']],kw:'telemetry crash'},
+  {label:'Privacy policy',type:'btn',btn:'Read our privacy policy'}]},
+ {title:'Fraud protection',icon:'lock',rows:[
+  {type:'sub',label:'Fraud and filters',desc:'These settings apply to all accounts. Individual account options can be changed in Account settings.'},
+  {k:'spamAction',label:'When messages are marked as spam',type:'radios',opts:[['junk','Move to the Spam folder'],['delete','Delete immediately']],kw:'junk'},
+  {label:'Mark spam messages as read',type:'checks',opts:[['spamReadManual','When marked manually'],['spamReadAuto','When detected automatically by Thunderbird']]},
+  {k:'spamLog',label:'Keep a log of automatic spam detection',type:'toggle'},
+  {label:'Spam filter',type:'btns',btns:['Show log','Reset Training Data']}]},
+ {title:'Security',icon:'lock',rows:[
+  {type:'sub',label:'Phishing and scam warnings'},
+  {k:'scamWarn',label:'Warn when reading an email that looks like a scam',desc:'Thunderbird checks messages for phishing links and common signs of email scams.',type:'toggle',kw:'phishing'},
+  {type:'sub',label:'Antivirus integration'},
+  {k:'antivirus',label:'Allow antivirus software to isolate infected incoming emails',desc:'Allows antivirus software to check incoming messages individually before they are saved to your computer.',type:'toggle'},
+  {type:'sub',label:'Certifications'},
+  {k:'certMode',label:'When a server asks for a certificate to verify your identity',type:'radios',opts:[['auto','Choose a certificate automatically'],['ask','Ask every time']]},
+  {k:'ocsp',label:'Check certificate validation servers (OCSP) to confirm certificates are still correct',type:'toggle'},
+  {label:'Certificates',type:'btn',btn:'Manage Certificates…'}]},
+ {title:'Passwords',icon:'lock',rows:[
+  {type:'sub',label:'Saved passwords and logins',desc:'Thunderbird can save passwords for registered accounts.'},
+  {label:'Saved passwords',type:'btn',btn:'View Saved Passwords…'},
+  {k:'osReauth',label:'Require device sign in to fill and manage passwords',type:'toggle'},
+  {type:'sub',label:'Primary password',desc:'A Primary Password protects all passwords and is entered once per session.'},
+  {k:'primaryPw',label:'Use Primary Password',type:'toggle'},
+  {label:'Change password',type:'btn',btn:'Change Primary Password…',show:()=>S.primaryPw},
+  {type:'sub',label:'Security devices'},
+  {label:'Hardware tokens and modules',type:'btn',btn:'Security Devices…'}]},
+ {title:'Encryption',icon:'lock',rows:[
+  {type:'sub',label:'OpenPGP',desc:'Encrypted emails can only be read by you and your recipients.'},
+  {label:'Automatic use of encryption',type:'checks',opts:[['e2eeAuto','Automatically turn on encryption when possible','Thunderbird turns encryption on if valid accepted keys or certificates are available for all recipients.'],['e2eeAutoOff','Automatically turn off encryption when recipients change and encryption is no longer possible'],['e2eeNotify','Show a notification whenever encryption is turned off automatically']],kw:'openpgp pgp smime'},
+  {type:'sub',label:'Key management',desc:'A keyserver receives and then serves existing public keys to users. It lets you publish your public key and find and refresh keys of others.'},
+  {label:'Keyservers in use',type:'text',value:'keys.openpgp.org, keyserver.ubuntu.com'},
+  {label:'Keyserver list',type:'btns',btns:['Add…','Reset Server List']},
+  {type:'sub',label:'Web address protection (secure DNS)',desc:'Secure DNS encrypts the lookup requests Thunderbird sends to find websites, keeping your browsing activity private from any network monitoring.'},
+  {k:'doh',label:'Enable DNS over HTTPS using',type:'radios',opts:[['default','Automatic protection (Recommended)','Thunderbird automatically encrypts address lookups when available. Switches back to standard network lookups if there’s a connection issue or if a VPN or managed network requires it.'],['increased','Increased protection','Always uses your chosen provider. Uses a standard connection only if the secure provider fails.'],['maximum','Maximum protection','Strictly requires encrypted DNS. Websites will not load if the secure connection fails.'],['off','Off','Uses your standard internet provider or network to look up web addresses.']],kw:'doh dns'},
+  {k:'dohProvider',label:'Choose provider',type:'select',opts:[['cloudflare','Cloudflare (Default)'],['nextdns','NextDNS'],['custom','Custom']],show:()=>S.doh!=='off'},
+  {k:'dohWarn',label:'Warn if a third party actively prevents secure DNS',type:'toggle',show:()=>S.doh!=='off'}]},
+ {title:'Network',icon:'globe',rows:[
+  {type:'sub',label:'Connection settings',desc:'Control how Thunderbird connects to the internet.'},
+  {label:'Proxy and network',type:'btn',btn:'Connection options…'},
+  {type:'sub',label:'Working offline'},
+  {k:'offlineCompact',label:'Remove data from folders when they have already been deleted to free up storage',type:'toggle'},
+  {k:'offlineAsk',label:'Ask before cleaning up folders',type:'toggle',show:()=>S.offlineCompact},
+  {label:'Offline settings',type:'btn',btn:'Offline…'}]}
+],
+calendar:[
+ {title:'View and work week',icon:'cal',rows:[
+  {type:'sub',label:'Work week and hours'},
+  {label:'Days in my work week',type:'checks',opts:[['wd1','Monday'],['wd2','Tuesday'],['wd3','Wednesday'],['wd4','Thursday'],['wd5','Friday'],['wd6','Saturday'],['wd0','Sunday']],inline:1,kw:'weekdays'},
+  {k:'dayStart',label:'Work day starts',type:'select',opts:HOURS.slice(0,5)},
+  {k:'dayEnd',label:'Work day ends',type:'select',opts:HOURS.slice(5)},
+  {type:'sub',label:'Calendar view options'},
+  {k:'calView',label:'Open calendar in',type:'select',opts:[['day','Day view'],['week','Week view'],['multiweek','Multiweek view'],['month','Month view']]},
+  {k:'weekNums',label:'Show week numbers',type:'toggle'},
+  {type:'sub',label:'Date and time display formats'},
+  {k:'localeSrc',label:'Format dates and times using',type:'radios',opts:[['app','Application locale: English (US)'],['os','Regional settings locale: English (UK)']]},
+  {k:'clock',label:'Clock',type:'seg',opts:[['12','12-hour'],['24','24-hour']]}]},
+ {title:'Event and task defaults',icon:'cal',rows:[
+  {type:'sub',label:'Default event duration'},
+  {k:'evtDuration',label:'New events last',type:'select',opts:[['30','30 minutes'],['60','1 hour'],['90','1.5 hours'],['allday','All day']]},
+  {type:'sub',label:'Reminders'},
+  {k:'remindNew',label:'Add a reminder to new events',type:'toggle'},
+  {k:'remindMin',label:'Remind me before the event',type:'select',opts:[['5','5 minutes'],['15','15 minutes'],['30','30 minutes'],['60','1 hour']],show:()=>S.remindNew},
+  {type:'sub',label:'Snooze'},
+  {k:'snooze',label:'Snooze reminders for',type:'select',opts:[['5','5 minutes'],['10','10 minutes'],['15','15 minutes'],['30','30 minutes']]}]},
+ {title:'Invitations and responses',icon:'mail',rows:[
+  {type:'sub',label:'Manage invitations'},
+  {k:'invAuto',label:'When I receive an invitation',type:'radios',opts:[['show','Show it in the message','You choose whether to add it to your calendar.'],['add','Add it to my calendar as tentative','The event appears right away and you can accept or decline later.']]},
+  {type:'sub',label:'RSVP'},
+  {k:'rsvp',label:'When I respond to an invitation',type:'radios',opts:[['always','Always send my response'],['ask','Ask me before sending'],['never','Never send a response']]},
+  {type:'sub',label:'Conflict warnings'},
+  {k:'conflictWarn',label:'Warn me when an event overlaps with another',type:'toggle'}]},
+ {title:'Notifications',icon:'bell',rows:[
+  {type:'sub',label:'Alarm style'},
+  {k:'alarmStyle',label:'When a reminder is due',type:'radios',opts:[['popup','Show a reminder window','Stays on screen until you dismiss or snooze it.'],['notify','Show a notification only','A system notification that disappears on its own.']]},
+  {type:'sub',label:'Missed reminders'},
+  {k:'missedStart',label:'Show missed reminders when Thunderbird starts',type:'toggle'},
+  {k:'missedFor',label:'Look back',type:'select',opts:[['1','1 day'],['7','7 days'],['30','30 days']],show:()=>S.missedStart},
+  {type:'sub',label:'Sounds'},
+  {k:'calSound',label:'Play a sound for reminders',type:'toggle'},
+  {k:'calSoundFile',label:'Reminder sound',type:'select',opts:[['chime','Chime'],['bell','Soft bell'],['pulse','Pulse']],show:()=>S.calSound}]},
+ {title:'Categories',icon:'cal',rows:[
+  {type:'sub',label:'List of categories',desc:'Categories help you group and color-code events.'},
+  {label:'Work',type:'cat',color:'#0a6bd8'},
+  {label:'Personal',type:'cat',color:'#2a9d5c'},
+  {label:'Birthdays',type:'cat',color:'#d3307f'},
+  {label:'Travel',type:'cat',color:'#d9610a'},
+  {label:'New category',type:'btn',btn:'Add category…'}]}
+],
+chat:[
+ {title:'Status',icon:'chat',rows:[
+  {type:'sub',label:'Startup'},
+  {k:'chatStartup',label:'When Thunderbird starts',type:'radios',opts:[['connect','Connect my chat accounts automatically'],['offline','Keep my chat accounts offline']]},
+  {type:'sub',label:'Away status'},
+  {k:'idle',label:'Let my contacts know that I am idle',type:'toggle'},
+  {k:'idleMin',label:'Set me as idle after',type:'select',opts:[['5','5 minutes'],['10','10 minutes'],['30','30 minutes']],show:()=>S.idle},
+  {k:'awayMsg',label:'Away status message',type:'input'},
+  {k:'typing',label:'Send typing notifications in conversations',type:'toggle'}]},
+ {title:'Notifications',icon:'bell',rows:[
+  {type:'sub',label:'When messages directed at you arrive'},
+  {k:'chatNotify',label:'Show a notification',type:'radios',opts:[['all','With sender’s name and message preview'],['name','With sender’s name only'],['none','Without any info']]},
+  {k:'chatFlash',label:'Flash the taskbar item',type:'toggle'},
+  {k:'chatSound',label:'Play a sound',type:'toggle'}]},
+ {title:'Styling',icon:'palette',rows:[
+  {type:'sub',label:'Conversation theme'},
+  {k:'chatTheme',label:'Theme',type:'select',opts:[['mail','Thunderbird'],['bubbles','Bubbles'],['dark','Dark'],['paper','Paper Sheets'],['simple','Simple']]},
+  {k:'chatVariant',label:'Variant',type:'select',opts:[['default','Default'],['compact','Compact']]}]}
+],
+extensions:[
+ {title:'Extensions',icon:'puzzle',rows:[
+  {type:'sub',label:'Manage extensions'},
+  {label:'Find, install and remove extensions',type:'btn',btn:'Add-ons and Themes'},
+  {type:'sub',label:'Installed extensions',desc:'Example extensions, shown for the prototype.'},
+  {k:'ext1',label:'Example dictionary extension',type:'toggle'},
+  {k:'ext2',label:'Example calendar sync extension',type:'toggle'},
+  {type:'sub',label:'Themes'},
+  {label:'Theme and colour settings',type:'link',to:'appearance',btn:'Open Appearance settings'}]}
+],
+accounts:[
+ {title:'Your accounts',icon:'user',rows:[
+  {type:'acctpick',label:'Choose an account to change its settings',kw:'add remove account'}]},
+ {title:'Account details',icon:'user',rows:[
+  {type:'sub',label:'Identity'},
+  {k:'acctName',label:'Account name',type:'input'},
+  {k:'yourName',label:'Your name',type:'input',kw:'display name'},
+  {k:'email',label:'Email address',type:'input'}]},
+ {title:'Incoming server',icon:'mail',rows:[
+  {type:'sub',label:'Server'},
+  {label:'Server type',type:'text',get:()=>S.serverType,kw:'imap pop3'},
+  {k:'server',label:'Server name',type:'input',kw:'host'},
+  {k:'port',label:'Port',type:'input'},
+  {k:'security',label:'Connection security',type:'select',opts:[['ssl','SSL/TLS'],['starttls','STARTTLS'],['none','None']],kw:'encryption'},
+  {k:'auth',label:'Authentication method',type:'select',opts:[['oauth','OAuth2'],['password','Normal password'],['kerberos','Kerberos / GSSAPI']],kw:'sign in login'},
+  {type:'sub',label:'Checking for mail'},
+  {k:'checkStart',label:'Check for new messages at startup',type:'toggle'},
+  {k:'checkMin',label:'Check for new messages every',type:'select',opts:[['5','5 minutes'],['10','10 minutes'],['30','30 minutes'],['60','60 minutes'],['never','Never']]}]},
+ {title:'Outgoing server',icon:'upload',rows:[
+  {type:'sub',label:'SMTP server'},
+  {k:'smtp',label:'Outgoing server',type:'select',opts:[['smtp.example.org','smtp.example.org (default)'],['smtp.example.com','smtp.example.com']],kw:'smtp send'},
+  {label:'Manage servers',type:'btn',btn:'Edit SMTP servers…'}]},
+ {title:'Copies and folders',icon:'dl',rows:[
+  {type:'sub',label:'Sent messages'},
+  {k:'sentCopy',label:'Place a copy of sent messages in',type:'toggle'},
+  {k:'sentFolder',label:'Sent folder',type:'select',opts:FOLDERS,show:()=>S.sentCopy},
+  {type:'sub',label:'Archives'},
+  {k:'archiveFolder',label:'Keep archived messages in',type:'select',opts:FOLDERS}]},
+ {title:'Composition and addressing',icon:'pen',rows:[
+  {k:'htmlCompose',label:'Compose messages in HTML format',type:'toggle',kw:'rich text'},
+  {k:'quote',label:'Automatically quote the original message when replying',type:'toggle'},
+  {k:'replyPos',label:'Start my reply',type:'select',opts:[['below','Below the quote'],['above','Above the quote']],show:()=>S.quote},
+  {k:'useSig',label:'Attach a signature to new messages',type:'toggle'}]},
+ {title:'Junk',icon:'lock',rows:[
+  {k:'junkMove',label:'When messages are marked as spam',type:'select',opts:[['junk','Move to the Spam folder'],['delete','Delete immediately']],kw:'spam'},
+  {k:'junkLog',label:'Keep a log of automatic spam detection',type:'toggle'}]},
+ {title:'Synchronization and storage',icon:'gear',rows:[
+  {k:'offlineKeep',label:'Keep messages for this account on this computer',type:'toggle',kw:'offline'},
+  {k:'syncPeriod',label:'Keep messages from',type:'select',opts:[['all','All time'],['year','The last year'],['6mo','The last 6 months'],['month','The last month']],show:()=>S.offlineKeep},
+  {k:'compactAuto',label:'Clean up folders automatically to free up storage',type:'toggle',kw:'compact'}]},
+ {title:'End-to-end encryption',icon:'lock',rows:[
+  {k:'e2eeKey',label:'Personal OpenPGP key',type:'select',opts:[['none','No key selected'],['0x4A1F…C2D9','0x4A1F…C2D9']],kw:'pgp openpgp'},
+  {label:'Keys',type:'btns',btns:['Add key…','Manage keys']},
+  {k:'e2eeDefault',label:'Automatically turn on encryption when possible',type:'toggle'}]},
+ {title:'Return receipts',icon:'mail',rows:[
+  {k:'receipts',label:'When I send a message, always request a return receipt',type:'toggle'}]}
+],
+general:[
+ {title:'Language',icon:'globe',rows:[
+  {type:'sub',label:'Application language'},
+  {k:'appLang',label:'Display language',desc:'Choose the language used for menus, buttons, and notifications.',type:'select',opts:LANGS,kw:'locale translation'},
+  {label:'More languages',type:'btn',btn:'Manage languages…'}]},
+ {title:'Home and startup',icon:'gear',rows:[
+  {type:'sub',label:'Startup behaviour'},
+  {label:'Tray behaviour',type:'checks',opts:[['tray','Move Thunderbird to the tray when it is closed'],['startTray','Start Thunderbird in the tray']],kw:'close tray minimize'},
+  {type:'sub',label:'System integration'},
+  {k:'defmail',label:'Always check to see if Thunderbird is the default email app when opened',type:'toggle',kw:'default client'},
+  {label:'Default apps',type:'btn',btn:'Edit defaults…'},
+  {type:'sub',label:'Default search engine'},
+  {k:'searchEngine',label:'Default search engine',type:'select',opts:[['duckduckgo','DuckDuckGo'],['google','Google'],['bing','Bing'],['wikipedia','Wikipedia']],kw:'web search'},
+  {label:'Search providers',type:'btns',btns:['Add…','Remove']}]},
+ {title:'Folder settings',icon:'mail',rows:[
+  {type:'sub',label:'Recent folders'},
+  {k:'recentSort',label:'Sort order',desc:'Controls how recently used folders appear when moving messages.',type:'select',opts:[['mru','Most recent'],['alpha','Alphabetical']]},
+  {k:'recentMax',label:'Maximum number of recent folders',type:'select',opts:[['10','10'],['20','20'],['30','30'],['50','50']]}]},
+ {title:'Downloads and storage',icon:'dl',rows:[
+  {type:'sub',label:'Download location'},
+  {k:'askSave',label:'Always ask me where to save files',type:'toggle'},
+  {k:'dlpath',label:'Save files to',type:'path',kw:'folder browse'},
+  {type:'sub',label:'Local storage'},
+  {k:'storeFmt',label:'Storage format for new accounts',type:'select',opts:[['mbox','Single file per folder (mbox)'],['maildir','File per message (maildir)']],kw:'mbox maildir'},
+  {k:'manualLimit',label:'Manually set storage limits for temporary files',type:'toggle'},
+  {k:'clearOnClose',label:'Clear temporary files when Thunderbird closes',type:'toggle'},
+  {label:'Temporary files',type:'btn',btn:'Clear temporary files'},
+  {type:'sub',label:'Performance'},
+  {k:'globalSearch',label:'Turn on search across all email accounts',type:'toggle',kw:'gloda global'},
+  {k:'plainResults',label:'Show search results as a plain list',type:'toggle'}]},
+ {title:'About & updates',icon:'upload',rows:[
+  {type:'sub',label:'Thunderbird updates'},
+  {label:'Thunderbird version',type:'text',value:'Version 150.0',kw:'about'},
+  {k:'updates',label:'Update settings',type:'radios',opts:[['auto','Automatically install updates (recommended)','Keeps Thunderbird secure with the latest security fixes.'],['ask','Check for updates, but ask before installing','You decide when each update is installed.']],kw:'update install'},
+  {label:'Update history',type:'btn',btn:'Show history'},
+  {type:'sub',label:'Release settings'},
+  {k:'bgUpdate',label:'Install updates when Thunderbird is not running',type:'toggle',kw:'background'}]}
+],
+appearance:[
+ {title:'Theme and colour',icon:'palette',rows:[
+  {type:'sub',label:'Accent colour'},
+  {type:'swatches',label:'Select color for primary button and highlights',kw:'accent colour blue purple orange pink ink teal'},
+  {type:'sub',label:'Themes'},
+  {type:'themes',label:'Choose how Thunderbird looks',kw:'dark light system mode follow'},
+  {type:'sub',label:'Dark mode for message body'},
+  {k:'darkMsg',label:'Use dark mode for message text',desc:'Applies a dark background to all incoming messages, even if the sender formatted them in light colors.',type:'toggle'},
+  {k:'darkToggle',label:'Show dark message mode toggle',desc:'Lets you quickly switch an email back to light mode while reading, without changing your main settings.',type:'toggle'},
+  {type:'sub',label:'Add-on themes'},
+  {label:'Find more themes',type:'btn',btn:'Add-ons and Themes',kw:'extensions addons'}]},
+ {title:'Layout and density',icon:'palette',rows:[
+  {type:'sub',label:'Density'},
+  {k:'density',label:'Spacing',desc:'Controls how much space there is around settings and messages.',type:'seg',opts:[['compact','Compact'],['default','Default'],['relaxed','Relaxed']],kw:'density compact relaxed spacing'},
+  {type:'sub',label:'Message list'},
+  {k:'addrFmt',label:'Preferred address display format',type:'select',opts:[['full','Full name and email address'],['email','Email only'],['name','Name only']]},
+  {k:'nameOnly',label:'Only show display name for contacts saved in the address book',type:'toggle'},
+  {k:'underlineLinks',label:'Underline text links in messages',type:'toggle'},
+  {k:'emoticons',label:'Display emoticons as graphics',type:'toggle',kw:'smileys'},
+  {type:'sub',label:'Window layout'},
+  {k:'hideTitle',label:'Hide title bar',desc:'Removes the top bar showing the window name to save screen space',type:'toggle'},
+  {k:'hideTabbar',label:'Hide the tab bar when only a single tab is open',desc:'Automatically hides tabs until you open a second tab.',type:'toggle'},
+  {type:'sub',label:'Scrolling behaviour'},
+  {k:'autoscroll',label:'Enable auto-scrolling',type:'toggle'},
+  {k:'smooth',label:'Use smooth scrolling',type:'toggle'},
+  {k:'scrollbars',label:'Always show scrollbars',type:'toggle'},
+  {k:'hscroll',label:'Allow horizontal scroll in table view',type:'toggle'},
+  {type:'sub',label:'Performance and motion'},
+  {k:'gpu',label:'Use graphics acceleration for smoother scrolling and performance',type:'toggle',kw:'gpu'}]},
+ {title:'Message list view style',icon:'mail',rows:[
+  {k:'viewStyle',label:'Select view style',type:'seg',opts:[['table','Table view'],['card','Card view']],kw:'layout cards table'},
+  {k:'cardRows',label:'Row count',type:'seg',opts:[['3','3 rows'],['2','2 rows']],show:()=>S.viewStyle==='card',kw:'card view options'},
+  {type:'preview',label:'Preview'},
+  {type:'sub',label:'Sorting and threading',desc:'Select default sorting and threading options for new folders'},
+  {k:'thread',label:'Default Threading',type:'select',opts:[['unthreaded','Unthreaded'],['threaded','Threaded'],['grouped','Grouped by Sort']]},
+  {k:'sortBy',label:'Sort messages by',type:'select',opts:[['date','Date'],['subject','Subject'],['from','From'],['size','Size'],['priority','Priority'],['status','Status'],['tags','Tags'],['attachments','Attachments'],['recipient','Recipient'],['account','Account']]},
+  {k:'sortOrder',label:'Default sort order',type:'select',opts:[['top','Newest messages at the top'],['bottom','Newest messages at the bottom']]},
+  {label:'Apply these view settings to',type:'btns',btns:['All folders and subfolders','Select folders…']}]}
+],
+beta:[
+ {title:'Experimental features',icon:'flask',desc:'These features are still in development and might not always work as expected.',rows:[
+  {type:'sub',label:'Conversation view'},
+  {k:'convView',label:'Show conversation view',desc:'This is an early preview feature. It groups related messages together, but it might not always work as expected.',type:'toggle',kw:'threads'},
+  {type:'sub',label:'New calendar event dialog'},
+  {k:'newCalDialog',label:'View calendar events in the new dialog',desc:'New calendar dialog for viewing events',type:'toggle',kw:'calendar'},
+  {label:'Event and task defaults, reminders and invitations',type:'link',to:'calendar',btn:'Open Calendar settings',kw:'calendar'}]}
+],
+notifications:[
+ {title:'App notifications and sounds',icon:'bell',rows:[
+  {type:'sub',label:'Sounds'},
+  {k:'sound',label:'Turn on notification sounds',type:'toggle',kw:'audio chime'},
+  {type:'file',label:'Upload audio file',kw:'sound audio wav mp3 browse play'},
+  {type:'sub',label:'Icons'},
+  {k:'notifyMail',label:'Turn on notifications for new emails',type:'toggle',kw:'alert new mail desktop'},
+  {label:'Icons and alerts',type:'buttons',kw:'badge tray alert'},
+  {type:'sub',label:'Calendar notifications'},
+  {label:'Alarm style, missed reminders and sounds',type:'link',to:'calendar',btn:'Open Calendar settings',kw:'reminders alarms'},
+  {type:'sub',label:'Chat notifications'},
+  {label:'Chat message alerts and sounds',type:'link',to:'chat',btn:'Open Chat settings',kw:'messages'}]}
+]};
+
+const ACCTS={
+ work:{acctName:'Work',yourName:'Sam Rivera',email:'sam@example.org',serverType:'IMAP',server:'imap.example.org',port:'993',security:'ssl',auth:'oauth',checkStart:true,checkMin:'10',smtp:'smtp.example.org',sentCopy:true,sentFolder:'sent',archiveFolder:'archives',htmlCompose:true,quote:true,replyPos:'below',useSig:true,junkMove:'junk',junkLog:false,offlineKeep:true,syncPeriod:'all',compactAuto:true,e2eeKey:'none',e2eeDefault:false,receipts:false},
+ personal:{acctName:'Personal',yourName:'Sam Rivera',email:'sam.rivera@example.com',serverType:'POP3',server:'pop.example.com',port:'995',security:'ssl',auth:'password',checkStart:true,checkMin:'30',smtp:'smtp.example.com',sentCopy:true,sentFolder:'sent',archiveFolder:'archives',htmlCompose:false,quote:true,replyPos:'above',useSig:false,junkMove:'delete',junkLog:true,offlineKeep:true,syncPeriod:'all',compactAuto:false,e2eeKey:'0x4A1F…C2D9',e2eeDefault:true,receipts:false}
+};
+const AFIELDS=Object.keys(ACCTS.work);
+function loadAcct(id){if(!ACCTS[id])id='work';Object.assign(S,ACCTS[id],(S.accts||{})[id]||{});S.acct=id}
+function switchAcct(id){S.accts=S.accts||{};S.accts[S.acct]=Object.fromEntries(AFIELDS.map(f=>[f,S[f]]));loadAcct(id)}
+function acctName(id){return id===S.acct?S.acctName:((S.accts||{})[id]||{}).acctName||ACCTS[id].acctName}
+loadAcct(S.acct);
+let cur=(location.hash||'#general').slice(1);
+if(!SECTIONS.find(s=>s.id===cur))cur='general';
+let query='',playing=null;
+
+function toast(t){let el=document.getElementById('toast');if(!el){el=document.createElement('div');el.id='toast';el.setAttribute('role','status');document.body.appendChild(el)}
+ el.textContent=t;el.classList.add('show');clearTimeout(toast.t);toast.t=setTimeout(()=>el.classList.remove('show'),1600)}
+function flash(){const el=document.getElementById('saved');if(el){el.classList.add('show');clearTimeout(flash.t);flash.t=setTimeout(()=>el.classList.remove('show'),1100)}}
+function save(){S.accts=S.accts||{};S.accts[S.acct]=Object.fromEntries(AFIELDS.map(f=>[f,S[f]]));try{localStorage.setItem('tb-settings-proto',JSON.stringify(S))}catch(e){}}
+function applyTheme(){
+ const r=document.documentElement;
+ if(S.theme==='system')r.removeAttribute('data-theme');else r.setAttribute('data-theme',S.theme);
+ r.setAttribute('data-density',S.density);
+ const a=ACC.find(x=>x[0]===S.accent);
+ if(a&&a[2]){const c=a[2][isDark()?1:0];r.style.setProperty('--accent',c);r.style.setProperty('--accent-soft','color-mix(in srgb,'+c+' 16%,var(--bg))')}else{r.style.removeProperty('--accent');r.style.removeProperty('--accent-soft')}
+r.style.setProperty('--scale',S.fontsize/100);
+}
+function hl(t){if(!query)return esc(t);const i=t.toLowerCase().indexOf(query.toLowerCase());
+ return i<0?esc(t):esc(t.slice(0,i))+'<mark>'+esc(t.slice(i,i+query.length))+'</mark>'+esc(t.slice(i+query.length))}
+function themeCard(v,name,a,b){return `<button class="tcard" data-theme-pick="${v}" aria-pressed="${S.theme===v}"><div class="pv" style="background:${b}"><i style="background:${a}"></i><i></i></div><span>${name}</span></button>`}
+function control(r){
+ switch(r.type){
+  case 'toggle':return `<button class="sw" role="switch" aria-checked="${S[r.k]}" aria-label="${esc(r.label)}" data-k="${r.k}"></button>`;
+  case 'select':return `<select class="sel" data-k="${r.k}" aria-label="${esc(r.label)}">${r.opts.map(o=>`<option value="${o[0]}"${S[r.k]===o[0]?' selected':''}>${o[1]}</option>`).join('')}</select>`;
+  case 'seg':return `<div class="seg" role="group" aria-label="${esc(r.label)}">${r.opts.map(o=>`<button data-k="${r.k}" data-v="${o[0]}" aria-pressed="${S[r.k]===o[0]}">${o[1]}</button>`).join('')}</div>`;
+  case 'range':return `<div class="range"><span aria-hidden="true" style="font-size:12px">A</span><input type="range" min="85" max="130" step="5" value="${S.fontsize}" data-k="fontsize" aria-label="Text size"><span aria-hidden="true" style="font-size:18px">A</span><output style="min-width:3.2em;text-align:right">${S.fontsize}%</output></div>`;
+  case 'path':return `<div class="file" style="min-width:300px"><span class="has">${esc(S.dlpath)}</span><button class="btn" data-act="pickdir">${ic('upload',18)}Choose</button></div>`;
+  case 'text':return `<span style="color:var(--muted)">${r.get?r.get():r.value}</span>`;
+  case 'input':return `<input class="inp" type="text" id="f-${r.k}" data-k="${r.k}" value="${esc(S[r.k])}" aria-label="${esc(r.label)}">`;
+  case 'acctpick':return `<select class="sel" data-acct="1" aria-label="Account">${Object.keys(ACCTS).map(id=>`<option value="${id}"${S.acct===id?' selected':''}>${esc(acctName(id))}</option>`).join('')}</select><button class="btn" data-act="stub">Add account…</button><button class="btn" data-act="stub">Remove</button>`;
+  case 'cat':return `<span class="dot" style="background:${r.color}"></span><button class="btn" data-act="stub">Edit</button><button class="btn" data-act="stub">Delete</button>`;
+  case 'btn':return `<button class="btn" data-act="stub">${r.btn}</button>`;
+  case 'btns':return r.btns.map(b=>`<button class="btn" data-act="stub">${b}</button>`).join('');
+  case 'link':return `<button class="btn" data-nav="${r.to}">${r.btn}</button>`;
+  case 'buttons':return `<button class="btn" data-act="appicons">${ic('bell',18)}App icons</button><button class="btn" data-act="alerts">${ic('envx',18)}Modify alerts</button>`;
+ }return'';
+}
+const ACC=[['os','Follow operating system',null],['thunderbird','Thunderbird blue',['#0a6bd8','#54a3ff']],['purple','Purple',['#7b3fe4','#b794ff']],['orange','Orange',['#d9610a','#ff9d5c']],['pink','Pink',['#d3307f','#ff7fb5']],['ink','Ink',['#3b3b4f','#c2c2d6']],['teal','Teal',['#0a8a8a','#4fd1c5']]];
+function isDark(){return S.theme==='dark'||(S.theme==='system'&&matchMedia('(prefers-color-scheme: dark)').matches)}
+function row(r){
+ if(r.type==='sub')return `<div class="subh"><b>${hl(r.label)}</b>${r.desc?`<small>${hl(r.desc)}</small>`:''}</div>`;
+ if(r.type==='radios')return `<div class="row col"><div class="lbl"><b>${hl(r.label)}</b>${r.desc?`<small>${hl(r.desc)}</small>`:''}</div><div class="opts" role="radiogroup" aria-label="${esc(r.label)}">${r.opts.map(o=>`<label class="opt"><input type="radio" name="${r.k}" data-k="${r.k}" value="${esc(o[0])}"${S[r.k]===o[0]?' checked':''}><span><b>${hl(o[1])}</b>${o[2]?`<small>${hl(o[2])}</small>`:''}</span></label>`).join('')}</div></div>`;
+ if(r.type==='checks')return `<div class="row col"><div class="lbl"><b>${hl(r.label)}</b>${r.desc?`<small>${hl(r.desc)}</small>`:''}</div><div class="opts ${r.inline?'inline':''}" role="group" aria-label="${esc(r.label)}">${r.opts.map(o=>`<label class="opt"><input type="checkbox" data-k="${o[0]}"${S[o[0]]?' checked':''}><span><b>${hl(o[1])}</b>${o[2]?`<small>${hl(o[2])}</small>`:''}</span></label>`).join('')}</div></div>`;
+ if(r.type==='themes')return `<div class="row col"><div class="lbl strong"><b>${hl(r.label)}</b></div><div class="themes">${themeCard('system','Follow system theme','#e8e8ee','#ffffff')}${themeCard('light','Light theme','#e8e8ee','#ffffff')}${themeCard('dark','Dark theme','#2d2c38','#1c1b22')}</div></div>`;
+ if(r.type==='swatches')return `<div class="row col"><div class="lbl"><b>${hl(r.label)}</b></div><div class="accs">${ACC.map(a=>`<button class="acc" data-accent="${a[0]}" aria-pressed="${S.accent===a[0]}"><i style="background:${a[2]?a[2][isDark()?1:0]:'conic-gradient(#0a6bd8,#d3307f,#d9610a,#0a8a8a,#0a6bd8)'}"></i>${a[1]}</button>`).join('')}</div></div>`;
+ if(r.type==='preview'){const m=[['Maya Chen','Design review notes','Attached the updated settings flow for the review on Thursday, plus notes from the last round.','9:41',0],['Build bot','Nightly build #4812 passed','All 3,204 tests passed on Linux, macOS and Windows with no new warnings.','8:12',1],['Jonas Weber','Re: Translation strings','Thanks, merged into the branch. German and Dutch are ready for another look.','Tue',1],['Priya Nair','Lunch Thursday?','Same place as last time works for me, around noon if that suits everyone.','Mon',1]];
+  const tb=S.viewStyle==='table';
+  const body=tb?`<div class="tbl hd"><span>Subject</span><span>From</span><span>Date</span></div>`+m.map(x=>`<div class="tbl ${x[4]?'read':''}"><span>${x[1]}</span><span>${x[0]}</span><span>${x[3]}</span></div>`).join('')
+   :m.map(x=>`<div class="msg ${x[4]?'read':''}"><div class="av">${x[0].split(' ').map(w=>w[0]).join('')}</div><div class="t"><b>${x[1]}</b><small class="who">${x[0]}</small>${S.cardRows==='3'?`<small>${x[2]}</small>`:''}</div><time>${x[3]}</time></div>`).join('');
+  return `<div class="row col"><div class="lbl"><b>${hl(r.label)}</b></div><div class="preview ${tb&&S.hscroll?'hs':''}">${body}</div></div>`}
+ if(r.type==='file'){const off=!S.sound;
+  return `<div class="row col"${off?' style="opacity:.55"':''}><div class="lbl strong"><b>${hl(r.label)}</b></div><div class="file"><span class="${S.file?'has':''}">${S.file?esc(S.file):'Audio file'}</span><div class="ctl"><button class="btn" data-act="browse"${off?' disabled':''}>${ic('upload',18)}Browse</button><button class="btn" data-act="play"${off?' disabled':''}>${playing?ic('stop',18)+'Stop <span class="eq"><i></i><i></i><i></i></span>':ic('play',18)+'Play'}</button></div></div></div>`}
+ return `<div class="row"><div class="lbl"><b>${hl(r.label)}</b>${r.badge?`<span class="badge">${r.badge}</span>`:''}${r.desc?`<small>${hl(r.desc)}</small>`:''}</div><div class="ctl">${control(r)}</div></div>`;
+}
+function card(c){const rows=c.rows.filter(r=>!r.show||r.show());return `<section class="card"><header>${ic(c.icon,22)}${hl(c.title)}</header>${c.desc?`<p class="cdesc">${hl(c.desc)}</p>`:''}<div class="rows">${rows.map(row).join('')}</div></section>`}
+function matchRow(r,c,sec){return (r.label+' '+(r.desc||'')+' '+(r.opts||[]).map(o=>o.join(' ')).join(' ')+' '+(r.kw||'')+' '+c.title+' '+sec).toLowerCase().includes(query.toLowerCase())}
+
+function renderPane(){
+ const pane=document.getElementById('pane');
+ if(query){
+  let out='';
+  for(const id of ['accounts','general','appearance','notifications','composition','privacy','calendar','chat','extensions','beta']){
+   const sec=SECTIONS.find(s=>s.id===id);
+   for(const c of CARDS[id]){const rows=c.rows.filter(r=>r.type!=='sub'&&(!r.show||r.show())&&matchRow(r,c,sec.label));
+    if(rows.length)out+=`<div class="crumb">${sec.label}</div>`+card({...c,rows})}
+  }
+  pane.innerHTML=`<h1>Search results</h1>`+(out||`<p class="empty">No settings match “${esc(query)}”. Try “sound”, “theme” or “language”.</p>`);
+  return;
+ }
+ const sec=SECTIONS.find(s=>s.id===cur);
+ if(sec.stub){const o=OUT[sec.id];pane.innerHTML=`<h1>${sec.label}</h1><p class="stubnote">Not built in this prototype yet. This is the planned structure.</p>`+(o?o.map(g=>`<section class="card"><header>${ic(sec.icon,22)}${g[0]}</header><div class="rows">${g[1].map(i=>`<div class="row"><div class="lbl"><b>${i}</b></div></div>`).join('')}</div></section>`).join(''):'<p class="stubpane">No groups defined yet.</p>');return}
+ pane.innerHTML=`<h1>${sec.label}<span class="saved" id="saved" role="status">Saved</span></h1>`+CARDS[cur].map(card).join('')+`<p class="tip">Changes apply immediately. Prototype state is kept in this browser only.</p>`;
+}
+function renderNav(){
+ document.getElementById('navlist').innerHTML=SECTIONS.map(s=>`<button class="navitem" data-nav="${s.id}" ${(!query&&s.id===cur)?'aria-current="page"':''}>${ic(s.icon,22)}<span>${s.label}</span></button>`).join('');
+}
+function renderRail(){
+ const b=[['mail','Mail',1],['book','Address book'],['cal','Calendar'],['task','Tasks'],['chat','Chat'],['sp'],['gear','Settings'],['collapse','Collapse sidebar']];
+ document.getElementById('rail').innerHTML=b.map(x=>x[0]==='sp'?'<div class="sp"></div>':`<button aria-label="${x[1]}" class="${x[2]?'on':''}">${ic(x[0],22)}</button>`).join('');
+}
+function render(){applyTheme();renderNav();renderPane()}
+
+function modal(html){const m=document.getElementById('modal');m.innerHTML=html?`<div class="pop" data-close><div class="dlg" role="dialog" aria-modal="true">${html}</div></div>`:'';
+ const f=m.querySelector('button');if(f)f.focus()}
+const miniToggle=(k,label)=>`<div class="row"><div class="lbl strong"><b>${label}</b></div><button class="sw" role="switch" aria-checked="${S[k]}" data-k="${k}" data-modal="1" aria-label="${label}"></button></div>`;
+function dlgIcons(){modal(`<h2>App icons</h2>${miniToggle('alertBadge','Show unread count on the app icon')}<div class="row"><div class="lbl strong"><b>Badge style</b></div><div class="seg">${[['count','Count'],['dot','Dot']].map(o=>`<button data-k="iconBadge" data-v="${o[0]}" data-modal="1" aria-pressed="${S.iconBadge===o[0]}">${o[1]}</button>`).join('')}</div></div><div class="foot"><button class="btn primary" data-done>Done</button></div>`)}
+function dlgAlerts(){modal(`<h2>Modify alerts</h2>${miniToggle('alertSender','Show the sender')}${miniToggle('alertPreview','Show a message preview')}<div class="foot"><button class="btn primary" data-done>Done</button></div>`)}
+
+document.addEventListener('click',e=>{
+ const t=e.target.closest('[data-done],[data-nav],[data-k],[data-theme-pick],[data-accent],[data-act],[data-close],#qx');if(!t)return;
+ if(t.hasAttribute('data-done')){modal('');return}
+ if(t.hasAttribute('data-close')){if(e.target===t)modal('');return}
+ if(t.id==='qx'){query='';document.getElementById('q').value='';t.hidden=true;render();return}
+ if(t.dataset.nav){cur=t.dataset.nav;query='';document.getElementById('q').value='';document.getElementById('qx').hidden=true;
+  try{history.replaceState(null,'','#'+cur)}catch(_){};render();return}
+ if(t.dataset.accent){S.accent=t.dataset.accent;save();render();flash();return}
+ if(t.dataset.themePick){S.theme=t.dataset.themePick;save();render();flash();return}
+ if(t.dataset.act){const a=t.dataset.act;
+  if(a==='browse'){S.file=S.file==='new-mail-chime.wav'?'soft-bell.mp3':'new-mail-chime.wav';playing=null;save();renderPane();flash()}
+  else if(a==='play'){playing=playing?null:1;renderPane();if(playing){const id=playing=Date.now();setTimeout(()=>{if(playing===id){playing=null;renderPane()}},2200)}}
+  else if(a==='pickdir'){S.dlpath=S.dlpath==='~/Downloads'?'~/Documents/Mail attachments':'~/Downloads';save();renderPane();flash()}
+  else if(a==='stub')toast('Not wired up in this prototype');
+  else if(a==='appicons')dlgIcons();
+  else if(a==='alerts')dlgAlerts();
+  return}
+ if(t.dataset.k){const k=t.dataset.k;
+  if(t.classList.contains('sw'))S[k]=!S[k];
+  else if(t.dataset.v!==undefined)S[k]=t.dataset.v;
+  else return;
+  save();
+  if(t.dataset.modal){k==='iconBadge'||k==='alertBadge'?dlgIcons():dlgAlerts();return}
+  if(k==='sound'&&!S.sound)playing=null;
+  render();flash()}
+});
+document.addEventListener('change',e=>{
+ const tg=e.target;
+ if(tg.dataset&&tg.dataset.k&&(tg.type==='radio'||tg.type==='checkbox')){const k=tg.dataset.k;S[k]=tg.type==='radio'?tg.value:tg.checked;save();
+  const q=tg.type==='radio'?`input[data-k="${k}"][value="${tg.value}"]`:`input[data-k="${k}"]`;const m=document.querySelector('main'),st=m.scrollTop;render();m.scrollTop=st;
+  const n=document.querySelector(q);if(n)n.focus({preventScroll:true});flash();return}
+ if(e.target.dataset&&e.target.dataset.acct){switchAcct(e.target.value);save();render();flash();return}
+ const k=e.target.dataset&&e.target.dataset.k;if(k&&e.target.tagName==='SELECT'){S[k]=e.target.value;save();flash()}});
+document.addEventListener('input',e=>{
+ if(e.target.type==='text'&&e.target.dataset.k){S[e.target.dataset.k]=e.target.value;save();flash();return}
+ if(e.target.id==='q'){query=e.target.value.trim();document.getElementById('qx').hidden=!query;renderNav();renderPane();return}
+ if(e.target.type==='range'){S.fontsize=+e.target.value;applyTheme();e.target.parentNode.querySelector('output').textContent=S.fontsize+'%';save()}
+});
+document.addEventListener('keydown',e=>{if(e.key==='Escape')modal('')});
+document.getElementById('ic-search').innerHTML=ic('search',22);
+renderRail();render();
+</script>
+
+</body></html>
